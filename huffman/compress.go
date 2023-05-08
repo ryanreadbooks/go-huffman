@@ -14,6 +14,10 @@ const (
 	CompressedFileEndFlag   uint16 = 0x414E
 )
 
+var (
+	ErrCanNotParseFileHeader = fmt.Errorf("can not parse file header")
+)
+
 // compressBytesWith 使用给定的Huffman编码表压缩字节切片
 // 返回压缩后的字节切片，压缩后的有效比特数
 func compressBytesWith(data []byte, table HuffmanEncTable) ([]byte, uint64, error) {
@@ -28,7 +32,7 @@ func compressBytesWith(data []byte, table HuffmanEncTable) ([]byte, uint64, erro
 		}
 		bitlen := code.BitLen()
 		totalBits += uint64(bitlen)
-		err := w.WriteUint16(code.Bits(), uint8(bitlen))
+		err := w.WriteUint32(code.Bits(), uint8(bitlen))
 		if err != nil {
 			return nil, 0, fmt.Errorf(err.Error())
 		}
@@ -54,23 +58,24 @@ func CompressBytes(data []byte) ([]byte, uint64, error) {
 //
 // 压缩文件格式如下：（大端序）
 // HEADER
-//   - START_FLAG						2 bytes uint16
-//   - SRC_FILENAME_LEN					2 bytes uint16
-//   - BYTE SIZE BEFORE COMPRESSION		4 byte uint32
-//   - BYTE SIZE AFTER COMPRESSION		4 bytes uint32
+//   - START_FLAG						2 bytes (uint16)
+//   - SRC_FILENAME_LEN					2 bytes (uint16)
+//   - BYTE SIZE BEFORE COMPRESSION		4 bytes (uint32)
+//   - BYTE SIZE AFTER COMPRESSION		4 bytes (uint32)
 //   - SRC_FILENAME						n bytes
 //
 // DATA
 //   - HUFFMAN TABLE
+//     -- HUFFMAN TABLE SIZE 	4 bytes (uint32)
+//     -- HUFFMAN TABLE DATA
 //   - COMPRESSED DATA
-//   - VALID BIT LEN		8 bytes uint64
-//   - COMPRESSED BIT
+//     -- VALID BIT LEN			4 bytes (uint32) + 1 bytes = 5 bytes
+//     -- COMPRESSED BIT
 //
 // TAIL
-//   - CRC32 CHECKSUM	  	4 bytes uint32
-//   - END_FLAG				2 bytes uint16
+//   - CRC32 CHECKSUM	  	4 bytes (uint32)
+//   - END_FLAG				2 bytes (uint16)
 func CompressFile(src, dst string) error {
-
 	srcF, err := os.Open(src)
 	if err != nil {
 		return err
@@ -92,6 +97,7 @@ func CompressFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
+
 	// Huffman码表
 	encTableSer, err := encTable.Serialize()
 	if err != nil {
@@ -110,7 +116,8 @@ func CompressFile(src, dst string) error {
 	filenameNoDir := path.Base(src)
 	filenameNoDirSize := uint16(len(filenameNoDir))
 
-	var alloc uint32 = 26 + compressedSize + uint32(len(encTableSer))
+	// 27字节为文件的固定开销
+	var alloc uint32 = 27 + compressedSize + uint32(len(encTableSer))
 	dstBytes := make([]byte, 0, alloc)
 	// 写入文件头
 	dstBytes = writeUint16ToBytes(CompressedFileStartFlag, dstBytes) // 文件开始标识
@@ -120,8 +127,22 @@ func CompressFile(src, dst string) error {
 	dstBytes = append(dstBytes, []byte(filenameNoDir)...)            // 源文件名
 
 	// 写入数据区
-	dstBytes = append(dstBytes, encTableSer...)     // Huffman码表
-	dstBytes = writeUint64ToBytes(bitLen, dstBytes) // bitlen
+	dstBytes = writeUint32ToBytes(uint32(len(encTableSer)), dstBytes) // Huffman码表大小
+	dstBytes = append(dstBytes, encTableSer...)                       // Huffman码表
+
+	// 根据实际比特长度计算压缩后需要占用多少个字节
+	bytesNeededAfterCompressed := bitLen / 8
+	slot := bitLen % 8
+	if slot != 0 {
+		bytesNeededAfterCompressed += 1
+	}
+
+	// 用5个字节来记录bitLen：
+	// bytesNeededAfterCompressed用4个字节
+	// slot用1个字节
+	dstBytes = writeUint32ToBytes(uint32(bytesNeededAfterCompressed), dstBytes)
+	dstBytes = append(dstBytes, byte(slot))
+	// dstBytes = writeUint64ToBytes(bitLen, dstBytes) // bitlen
 	dstBytes = append(dstBytes, compressedBytes...) // 压缩后数据本身
 
 	// 写入文件尾
@@ -161,5 +182,183 @@ func DecompressBytes(data []byte, bitLen uint64, table HuffmanDecTable) ([]byte,
 // DecompressFile 解压缩一个文件
 // 将src文件解压缩，然后写入到dst文件中
 func DecompressFile(src, dst string) error {
+	srcF, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcF.Close()
+
+	srcBytes, err := io.ReadAll(srcF)
+	if err != nil {
+		return err
+	}
+
+	// 解析源文件的压缩了的字节
+	cursor := 0
+	// 文件头
+	cursor, err = parseFileHeader(srcBytes, cursor)
+	if err != nil {
+		return fmt.Errorf("can not parse file header: %v", err)
+	}
+
+	// 数据区
+	decompressedBytes, cursor, err := parseCompressedDataArea(srcBytes, cursor)
+	if err != nil {
+		return fmt.Errorf("can not parse file data area: %v", err)
+	}
+
+	// 文件尾
+	// 校验数据是否正确
+	_, err = parseFileTail(srcBytes, cursor)
+	if err != nil {
+		return fmt.Errorf("can not parse file tail: %v", err)
+	}
+
+	// 创建目标文件准备写回
+	dstF, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstF.Close()
+
+	n, err := dstF.Write(decompressedBytes)
+	if err != nil {
+		return err
+	}
+	log.Printf("successfully written %d bytes into destination: %s\n", n, dst)
+
 	return nil
+}
+
+// 解析压缩文件头
+func parseFileHeader(srcBytes []byte, cursor int) (newCursor int, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			// 这里捕获可能的切片访问越界造成的panic
+			newCursor = 0
+			err = fmt.Errorf("%v", p)
+		}
+	}()
+
+	// 文件开始标记
+	gotStartFlag, err := readNextUint16(srcBytes, cursor)
+	if err != nil {
+		return 0, err
+	}
+	if gotStartFlag != CompressedFileStartFlag {
+		return 0, ErrInvalidStartFlag
+	}
+	cursor += Uint16ByteSize
+
+	// 压缩前文件名的长度
+	beforeFilenameLen, err := readNextUint16(srcBytes, cursor)
+	if err != nil {
+		return 0, err
+	}
+	cursor += Uint16ByteSize
+
+	// 32bit的压缩前文件大小
+	_, err = readNextUint32(srcBytes, cursor)
+	if err != nil {
+		return 0, err
+	}
+	cursor += Uint32ByteSize
+
+	// 32bit的压缩后文件大小
+	_, err = readNextUint32(srcBytes, cursor)
+	if err != nil {
+		return 0, err
+	}
+	cursor += Uint32ByteSize
+
+	// 源文件名字
+	end := cursor + int(beforeFilenameLen)
+	if end > len(srcBytes) {
+		return 0, ErrCursorOverflow
+	}
+	_ = srcBytes[cursor:end]
+	cursor = end
+
+	return cursor, nil
+}
+
+// 解析压缩文件数据区
+func parseCompressedDataArea(srcBytes []byte, cursor int) (data []byte, newCursor int, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			// 这里捕获可能的切片访问越界造成的panic
+			data = nil
+			newCursor = 0
+			err = fmt.Errorf("%v", p)
+		}
+	}()
+
+	// Huffman码表
+	huffTableLen, err := readNextUint32(srcBytes, cursor)
+	if err != nil {
+		return nil, 0, err
+	}
+	cursor += Uint32ByteSize
+
+	decTable, err := DeserializeHuffmanDecTable(srcBytes[cursor : cursor+int(huffTableLen)])
+	if err != nil {
+		return nil, 0, err
+	}
+	cursor += int(huffTableLen)
+
+	// 压缩数据解析
+	compressedBytesLen, err := readNextUint32(srcBytes, cursor)
+	if err != nil {
+		return nil, 0, err
+	}
+	cursor += Uint32ByteSize
+	slot := uint8(srcBytes[cursor])
+	cursor += 1
+
+	var validBitLen uint64
+	if slot == 0 {
+		validBitLen = uint64(compressedBytesLen * 8)
+	} else {
+		validBitLen = uint64((compressedBytesLen-1)*8 + uint32(slot))
+	}
+
+	decompressedBytes, err := decompressBytesWith(srcBytes[cursor:], validBitLen, decTable)
+	if err != nil {
+		return nil, 0, err
+	}
+	cursor += int(compressedBytesLen)
+
+	return decompressedBytes, cursor, nil
+}
+
+// 解析压缩文件尾
+func parseFileTail(srcBytes []byte, cursor int) (newCursor int, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			newCursor = 0
+			err = fmt.Errorf("%v", p)
+		}
+	}()
+
+	expectedChecksum, err := readNextUint32(srcBytes, cursor)
+	if err != nil {
+		return 0, err
+	}
+	curChecksum := crc32.Checksum(srcBytes[0:cursor], crc32q)
+	if curChecksum != expectedChecksum {
+		return 0, ErrChecksumNotMatched
+	}
+	cursor += Uint32ByteSize
+
+	// 文件结束标记
+	gotEndFlag, err := readNextUint16(srcBytes, cursor)
+	if err != nil {
+		return 0, err
+	}
+	if gotEndFlag != CompressedFileEndFlag {
+		return 0, ErrInvalidEndFlag
+	}
+	cursor += Uint16ByteSize
+
+	return cursor, nil
 }

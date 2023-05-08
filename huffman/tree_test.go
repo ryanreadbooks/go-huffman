@@ -1,7 +1,7 @@
 package huffman
 
 import (
-	"fmt"
+	// "fmt"
 	"testing"
 	// "github.com/stretchr/testify/require"
 )
@@ -31,12 +31,11 @@ func TestConstructHuffmanTree(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		_, leaves := ConstructHuffmanTree(tc.freq)
-		for _, leaf := range leaves {
-			fmt.Printf("%c: %s\n", leaf.Byte, leaf.Code.String())
-			// require.EqualValues(t, tc.expect[leaf.Byte], leaf.Code.String())
-		}
-		fmt.Println()
+		_, _ = ConstructHuffmanTree(tc.freq)
+		// for _, leaf := range leaves {
+		// require.EqualValues(t, tc.expect[leaf.Byte], leaf.Code.String())
+		// }
+		// fmt.Println()
 	}
 }
 
@@ -56,11 +55,11 @@ func TestConstructHuffmanTree_AllBytes256(t *testing.T) {
 		freq[(byte)(i)] = cnt
 	}
 
-	_, leaves := ConstructHuffmanTree(freq)
-	for _, leaf := range leaves {
-		fmt.Printf("%d: %s, %d\n", leaf.Byte, leaf.Code.String(), len(leaf.Code.String()))
-	}
-	fmt.Println()
+	ConstructHuffmanTree(freq)
+	// for _, leaf := range leaves {
+	// 	fmt.Printf("%d: %s, %d\n", leaf.Byte, leaf.Code.String(), len(leaf.Code.String()))
+	// }
+	// fmt.Println()
 }
 
 func TestConstructHuffmanTreeFreq_AllFreqEqual(t *testing.T) {
@@ -74,9 +73,9 @@ func TestConstructHuffmanTreeFreq_AllFreqEqual(t *testing.T) {
 		freq[(byte)(i)] = cnt
 	}
 
-	_, leaves := ConstructHuffmanTree(freq)
-	for _, leaf := range leaves {
-		fmt.Printf("%d: %s, %d\n", leaf.Byte, leaf.Code.String(), len(leaf.Code.String()))
-	}
-	fmt.Println()
+	ConstructHuffmanTree(freq)
+	// for _, _ := range leaves {
+	// 	// fmt.Printf("%d: %s, %d\n", leaf.Byte, leaf.Code.String(), len(leaf.Code.String()))
+	// }
+	// fmt.Println()
 }

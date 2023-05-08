@@ -28,7 +28,6 @@ func NewBitsReader(buf []byte, bitLen uint64, decodeTable HuffmanDecTable) *Bits
 
 // ReadByte 从比特中解析出一个字节
 func (r *BitsReader) ReadByte() (byte, error) {
-
 	if r.remain == 0 {
 		return 0, ErrBitsExhausted
 	}
@@ -40,6 +39,7 @@ func (r *BitsReader) ReadByte() (byte, error) {
 	i := 0
 	foundOne := false
 
+	// 每次最多读 MaxHuffmanCodeBitLen bit
 	for ; i < MaxHuffmanCodeBitLen && r.remain > 0; i++ {
 		if r.nextBit() {
 			parsedCode.AppendOne()
@@ -74,7 +74,7 @@ func (r *BitsReader) ReadByte() (byte, error) {
 	return ret, nil
 }
 
-// ReadAll 解析所有比特
+// ReadAll 解析所有比特位
 func (r *BitsReader) ReadAll() ([]byte, error) {
 	approxLen := r.remain / 8
 	ret := make([]byte, 0, approxLen)

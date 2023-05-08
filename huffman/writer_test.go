@@ -8,16 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBitsWriter_Primary(t *testing.T) {
-	// code1 := NewHuffmanCodeFromString("1001011")
-	// code2 := NewHuffmanCodeFromString("10101111")
-	// code3 := NewHuffmanCodeFromString("0001111111")
-	// code4 := NewHuffmanCodeFromString("1111100010101")
+func TestBitsWriter_Uint32_Primary(t *testing.T) {
 
 	s1 := "01010101"
-	s2 := "11111111"
-	s3 := "00000"
-	s4 := "111101"
+	s2 := "101111"
+	s3 := "1111001111"
+	s4 := "111"
 
 	code1 := NewHuffmanCodeFromString(s1)
 	code2 := NewHuffmanCodeFromString(s2)
@@ -25,25 +21,23 @@ func TestBitsWriter_Primary(t *testing.T) {
 	code4 := NewHuffmanCodeFromString(s4)
 
 	w := NewBitsWriter()
-	w.WriteUint16(code1.Bits(), uint8(code1.BitLen()))
-	w.WriteUint16(code2.Bits(), uint8(code2.BitLen()))
-	w.WriteUint16(code3.Bits(), uint8(code3.BitLen()))
-	w.WriteUint16(code4.Bits(), uint8(code4.BitLen()))
+	w.WriteUint32(code1.Bits(), uint8(code1.BitLen()))
+	w.WriteUint32(code2.Bits(), uint8(code2.BitLen()))
+	w.WriteUint32(code3.Bits(), uint8(code3.BitLen()))
+	w.WriteUint32(code4.Bits(), uint8(code4.BitLen()))
 
 	b := w.Buf()
-	// 1001011 10101111 0001111111 1111100010101
-	// 1001011 10101111 0001111111 1111100010101
-	// 10010111 01011110 00111111 11111100 01010100
-	// 0x97		0x5e	 0x3f	  0xfc	   0x54
+	// 01010101 10111111 11001111 11100000
+	// 0x55		0xbf	 0xcf	  0xe0
 	s := BytesToString(b, code1.BitLen()+code2.BitLen()+code3.BitLen()+code4.BitLen())
 	req := s1 + s2 + s3 + s4
 	fmt.Println("got :", s)
 	fmt.Println("want:", req)
-	// 01010101 11111111 00000111 10100000
-	// 55  		ff 		 07		  a0
+	require.EqualValues(t, s, req)
+
 }
 
-func TestBitsWriter(t *testing.T) {
+func TestBitsWriter_Uint32(t *testing.T) {
 	tests := []struct {
 		Codes []string
 	}{
@@ -56,6 +50,7 @@ func TestBitsWriter(t *testing.T) {
 		{Codes: []string{"0000", "000000001", "111010", "01011010101010"}},
 		{Codes: []string{"111111111100", "000", "00000000", "1111111111000000"}},
 		{Codes: []string{"1", "0", "1", "0", "0101010101", "0001111"}},
+		{Codes: []string{"10101010010111111000110", "101010101011111110000", "10101010111100001010", "101010101010110000101110", "101010101010101010111111", "0001111"}},
 	}
 
 	for _, tc := range tests {
@@ -67,7 +62,7 @@ func TestBitsWriter(t *testing.T) {
 			huff := NewHuffmanCodeFromString(s)
 			bitlen := uint8(huff.BitLen())
 			total += int(bitlen)
-			w.WriteUint16(huff.Bits(), bitlen)
+			w.WriteUint32(huff.Bits(), bitlen)
 		}
 		b := w.Buf()
 
@@ -75,8 +70,7 @@ func TestBitsWriter(t *testing.T) {
 	}
 }
 
-func TestBitsWriter_WithError(t *testing.T) {
+func TestBitsWriter_Uint32_WithError(t *testing.T) {
 	w := NewBitsWriter()
-
-	require.NotNil(t, w.WriteUint16(0x9600, 20))
+	require.NotNil(t, w.WriteUint32(0x9600, 40))
 }

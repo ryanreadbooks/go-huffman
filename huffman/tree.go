@@ -92,13 +92,15 @@ func ConstructHuffmanTree(freq Frequencies) (*HuffmanNode, []*HuffmanNode) {
 	// 1. 构建优先级队列
 	pq := NewHuffmanPQ()
 
-	// 所有叶子节点
+	// 插入所有叶子节点
 	var leaves []*HuffmanNode = make([]*HuffmanNode, 0, len(freq))
 	for k, v := range freq {
 		node := &HuffmanNode{Weight: v, Byte: k}
 		leaves = append(leaves, node)
 		pq.Push(node)
 	}
+
+	pq.UpdateOrder()
 
 	// 2. 开始构建Huffman树
 	for pq.Size() > 1 {
@@ -122,6 +124,7 @@ func ConstructHuffmanTree(freq Frequencies) (*HuffmanNode, []*HuffmanNode) {
 
 	// 给叶子节点编码
 	for _, leaf := range leaves {
+		// fmt.Println(i)
 		leaf.setCode()
 	}
 

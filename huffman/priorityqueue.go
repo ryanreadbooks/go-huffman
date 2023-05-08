@@ -61,6 +61,11 @@ func NewHuffmanPQFromUInts(ints []uint64) *HuffmanPQ {
 	return pq
 }
 
+// ?? 在初始化之后这个方法是否有影响 ??
+func (pq *HuffmanPQ) UpdateOrder() {
+	heap.Init(&pq.data)
+}
+
 func (pq *HuffmanPQ) Push(node *HuffmanNode) {
 	heap.Push(&pq.data, node)
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"log"
+	"strings"
 )
 
 type huffmanDeserializer interface {
@@ -26,8 +27,7 @@ const (
 	MetaSize               = 4            // flag or numbder size
 	MinHuffmanTableSerSize = 4 * MetaSize // bytes
 
-	Uint32ByteSize = 4 // bytes
-	TableItemSize  = 5 // bytes
+	TableItemSize = 5 // bytes
 )
 
 var (
@@ -82,6 +82,16 @@ func (h HuffmanEncTable) Equals(other HuffmanEncTable) bool {
 	return true
 }
 
+func (h HuffmanEncTable) PrettyString() string {
+	prettyStringBuilder := strings.Builder{}
+	prettyStringBuilder.Grow(1024)
+	for k, v := range h {
+		prettyStringBuilder.WriteString(fmt.Sprintf("%d(%#X)[%c]: %s(len=%d)\n", k, k, k, v.String(), len(v.String())))
+	}
+
+	return prettyStringBuilder.String()
+}
+
 func NewHuffmanDecTable(n int) HuffmanDecTable {
 	return make(HuffmanDecTable, n)
 }
@@ -100,7 +110,7 @@ func (h HuffmanDecTable) ItemNum() int {
 // Serialize 将HuffmanEncTable序列化到字节切片中
 // 序列化格式如下（大端序：高位放在低地址，低位放在高地址）
 // START_FLAG				4 bytes
-// NUMBER OF TABLE ITEMS	4 bytes uint32
+// NUMBER OF TABLE ITEMS	4 bytes (uint32)
 // TABLE_ITEM_1(BYTE+CODE)	1+4=5 bytes
 // TABLE_ITEM_2(BYTE+CODE)	1+4=5 bytes
 // ...
@@ -296,35 +306,13 @@ func DeserializeHuffmanDecTable(data []byte) (HuffmanDecTable, error) {
 	return nil, ErrDeserialize
 }
 
-func readNextUint32(buf []byte, start int) (uint32, error) {
-	n := len(buf)
-	if n < Uint32ByteSize {
-		return 0, ErrInvalidSize
-	}
-	if start+3 > n {
-		return 0, ErrCursorOverflow
-	}
-
-	byte0 := buf[start]
-	byte1 := buf[start+1]
-	byte2 := buf[start+2]
-	byte3 := buf[start+3]
-
-	var ans uint32 = 0
-	ans |= uint32(byte0) << 24
-	ans |= uint32(byte1) << 16
-	ans |= uint32(byte2) << 8
-	ans |= uint32(byte3)
-
-	return ans, nil
-}
-
+// readNextTableItem 读下一个表项
 func readNextTableItem(buf []byte, start int) (byte, uint32, error) {
 	n := len(buf)
 	if n < TableItemSize {
 		return 0, 0, ErrInvalidSize
 	}
-	if start+4 > n {
+	if start+TableItemSize-1 > n {
 		return 0, 0, ErrCursorOverflow
 	}
 

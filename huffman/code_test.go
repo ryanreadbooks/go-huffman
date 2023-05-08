@@ -17,7 +17,7 @@ func randInt32(min, max int32) int32 {
 func randomOneZeroString() string {
 	rand.Seed(time.Now().Unix())
 
-	size := randInt32(1, 15)
+	size := randInt32(1, 24)
 	var builder strings.Builder
 	builder.Grow(int(size))
 
@@ -33,8 +33,9 @@ func randomOneZeroString() string {
 }
 
 func TestHuffmanCode_Primary(t *testing.T) {
-	var s = "011010100101001"
+	var s = "0110101001010000001"
 	require.EqualValues(t, s, NewHuffmanCodeFromString(s).String())
+	require.EqualValues(t, len(s), NewHuffmanCodeFromString(s).BitLen())
 }
 
 func TestHuffmanCode(t *testing.T) {
@@ -44,6 +45,7 @@ func TestHuffmanCode(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		require.EqualValues(t, tc, NewHuffmanCodeFromString(tc).String())
+	require.EqualValues(t, len(tc), NewHuffmanCodeFromString(tc).BitLen())
 	}
 
 	// 测试非法字符串
@@ -62,12 +64,14 @@ func reverseString(s string) string {
 func TestHuffmanCode_ReversePrimary(t *testing.T) {
 	ss := []string{
 		"100101001110110",
+		"100110010100111011010101",
 		"10010",
 		"00101101",
 		"100100010111",
 	}
 	for _, s := range ss {
 		require.EqualValues(t, reverseString(s), NewHuffmanCodeFromString(s).ReverseNew().String())
+		require.EqualValues(t, len(s), NewHuffmanCodeFromString(s).ReverseNew().BitLen())
 	}
 }
 
@@ -78,11 +82,26 @@ func TestHuffmanCode_Reverse(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		require.EqualValues(t, reverseString(tc), NewHuffmanCodeFromString(tc).ReverseNew().String())
+		require.EqualValues(t, len(reverseString(tc)), NewHuffmanCodeFromString(tc).ReverseNew().BitLen())
 	}
 
 	h := &HuffmanCode{}
 	require.EqualValues(t, h.BitLen(), 0)
 	require.EqualValues(t, h.BitLen(), h.ReverseNew().BitLen())
+}
+
+func TestHuffmanCode_Reverse16(t *testing.T) {
+	h := NewHuffmanCodeFromString("1011011101110100")
+	hr := h.ReverseNew()
+	require.EqualValues(t, reverseString(h.String()), hr.String())
+	require.Equal(t, h.BitLen(), 16)
+	require.Equal(t, hr.BitLen(), 16)
+
+	h = NewHuffmanCodeFromString("0010111011101101")
+	hr = h.ReverseNew()
+	require.EqualValues(t, reverseString(h.String()), hr.String())
+	require.Equal(t, h.BitLen(), 16)
+	require.Equal(t, hr.BitLen(), 16)
 }
 
 func TestHuffmanClone(t *testing.T) {
