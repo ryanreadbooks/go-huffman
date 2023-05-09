@@ -45,7 +45,7 @@ func TestHuffmanCode(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		require.EqualValues(t, tc, NewHuffmanCodeFromString(tc).String())
-	require.EqualValues(t, len(tc), NewHuffmanCodeFromString(tc).BitLen())
+		require.EqualValues(t, len(tc), NewHuffmanCodeFromString(tc).BitLen())
 	}
 
 	// 测试非法字符串

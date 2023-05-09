@@ -21,7 +21,7 @@ type HuffmanCodeInterface interface {
 }
 
 const (
-	MaxHuffmanCodeBitLen = 24	// 允许最长的编码比特位到24位
+	MaxHuffmanCodeBitLen = 24 // 允许最长的编码比特位到24位
 )
 
 // 用一个uint32类型代表一个huffman的二进制编码格式

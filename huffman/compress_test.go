@@ -5,8 +5,8 @@ import (
 	"io"
 	"log"
 	"os"
-	"testing"
 	"strings"
+	"testing"
 
 	"github.com/stretchr/testify/require"
 )
@@ -76,7 +76,7 @@ func TestCompressAndDecompress(t *testing.T) {
 		log.Printf("performing compressing %s...\n", filename)
 		binname := filename + ".bin"
 		err := CompressFile(filename, binname)
-		require.Nil(t ,err)
+		require.Nil(t, err)
 
 		log.Printf("performing decompressing %s...\n", binname)
 		recovername := filename + ".recover"

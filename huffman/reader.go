@@ -13,7 +13,7 @@ type BitsReader struct {
 
 var (
 	ErrBitCodeNotFound = fmt.Errorf("bitcode not found")
-	ErrBitsExhausted = fmt.Errorf("bit exhausted")
+	ErrBitsExhausted   = fmt.Errorf("bit exhausted")
 )
 
 func NewBitsReader(buf []byte, bitLen uint64, decodeTable HuffmanDecTable) *BitsReader {
